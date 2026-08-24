@@ -1,0 +1,14 @@
+# Secretos — nunca subir clave de Google ni contraseña de entrenadores
+credentials.json
+**/.streamlit/secrets.toml
+.streamlit/secrets.toml
+
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+# Excel local de respaldo (puede tener nombres reales)
+*.xlsx
+~$*.xlsx
