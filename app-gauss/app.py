@@ -219,7 +219,7 @@ CSS_BASE = """
   .ns-table{
     width:100%;
     border-collapse:collapse;
-    font-size:13.2px;
+    font-size:14px;
     font-variant-numeric:tabular-nums;
     font-feature-settings:"tnum";
   }
@@ -267,7 +267,17 @@ CSS_LANDING = """
   .block-container { padding-top: 2.2rem; max-width: 980px; }
   [data-testid="stToolbar"], footer { visibility: hidden; height: 0; }
 
-  [data-testid="stImage"] img{
+  /* Solo el wordmark del login: no se selecciona ni se arrastra.
+     No aplica a inputs, botones ni al resto de la página. */
+  [class*="st-key-ns_landing_logo"] [data-testid="stImage"],
+  [class*="st-key-ns_landing_logo"] img{
+    -webkit-user-select:none !important;
+    -moz-user-select:none !important;
+    user-select:none !important;
+    -webkit-user-drag:none !important;
+    user-drag:none !important;
+    -webkit-touch-callout:none !important;
+    pointer-events:none;
     filter:drop-shadow(0 8px 26px rgba(126,182,224,.20));
   }
 
@@ -417,8 +427,9 @@ CSS_DASHBOARD = """
   /* Espacio para que el contenido no quede debajo de la barra fija */
   .ns-topbar-spacer { height: 74px; }
 
-  /* Botón Salir: anclado a la derecha de la barra */
-  [class*="st-key-ns_logout"] {
+  /* Botón Salir: anclado a la derecha de la barra.
+     .stApp + [kind] gana al hover secondary de CSS_BASE (#F8FBFE + texto claro). */
+  .stApp [class*="st-key-ns_logout"] {
     height: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -426,55 +437,83 @@ CSS_DASHBOARD = """
     border: none !important;
     background: transparent !important;
   }
-  [class*="st-key-ns_logout"] button,
-  [class*="st-key-ns_logout"] [data-testid="stBaseButton-secondary"],
-  [class*="st-key-ns_logout"] [data-testid^="stBaseButton-"] {
+  .stApp [class*="st-key-ns_logout"] button[kind],
+  .stApp [class*="st-key-ns_logout"] [data-testid="stBaseButton-secondary"] {
     position: fixed !important;
     top: 14px !important;
     right: max(1.25rem, 5vw) !important;
     z-index: 1000 !important;
     width: 7.5rem !important;
-    background: rgba(126,182,224,.06) !important;
+    background: rgba(126,182,224,.12) !important;
     color: #eef3f8 !important;
+    -webkit-text-fill-color: #eef3f8 !important;
     border: 1px solid rgba(126,182,224,.55) !important;
     border-radius: 10px !important;
     font-weight: 600 !important;
     box-shadow: none !important;
     transform: none !important;
+    filter: none !important;
     min-height: 40px !important;
   }
-  [class*="st-key-ns_logout"] button:hover,
-  [class*="st-key-ns_logout"] [data-testid^="stBaseButton-"]:hover {
-    background: #1e3a5f !important;
-    color: #ffffff !important;
+  .stApp [class*="st-key-ns_logout"] button[kind] p,
+  .stApp [class*="st-key-ns_logout"] button[kind] span {
+    color: #eef3f8 !important;
+    -webkit-text-fill-color: #eef3f8 !important;
+    background: transparent !important;
+  }
+  .stApp [class*="st-key-ns_logout"] button[kind]:hover,
+  .stApp [class*="st-key-ns_logout"] [data-testid="stBaseButton-secondary"]:hover {
+    background: #1E3A5F !important;
+    color: #eef3f8 !important;
+    -webkit-text-fill-color: #eef3f8 !important;
     border-color: #9ec5e8 !important;
-    box-shadow: 0 4px 14px rgba(126,182,224,.20) !important;
+    box-shadow: 0 4px 14px rgba(126,182,224,.28) !important;
     transform: none !important;
+    filter: none !important;
+  }
+  .stApp [class*="st-key-ns_logout"] button[kind]:hover p,
+  .stApp [class*="st-key-ns_logout"] button[kind]:hover span {
+    color: #eef3f8 !important;
+    -webkit-text-fill-color: #eef3f8 !important;
+    background: transparent !important;
   }
 
-  /* --- Pestañas: segmentos en vez de subrayado.
-     Se usan los roles ARIA (tablist/tab), estables entre versiones. --- */
+  /* --- Pestañas: segmentos a todo el ancho, no agrupados a la izquierda. --- */
+  [data-testid="stTabs"] > div,
+  [data-baseweb="tabs"]{
+    width:100% !important;
+  }
   [data-baseweb="tab-list"], [role="tablist"]{
-    gap:6px !important;
+    display:flex !important;
+    width:100% !important;
+    justify-content:space-between !important;
+    gap:12px !important;
     background:#F1F5FA;
-    padding:6px;
+    padding:8px;
     border-radius:14px;
     border:1px solid var(--ns-line);
     box-shadow:inset 0 1px 2px rgba(16,32,52,.04);
   }
-  [role="tablist"] button[role="tab"]{
+  [role="tablist"] button[role="tab"],
+  [data-baseweb="tab"]{
+    flex:1 1 0 !important;
+    min-width:0 !important;
+    justify-content:center !important;
+    text-align:center !important;
     border-radius:10px !important;
-    padding:8px 16px !important;
+    padding:10px 12px !important;
     background:transparent !important;
     color:var(--ns-muted) !important;
     font-weight:600 !important;
     transition:background-color .16s ease, color .16s ease, box-shadow .16s ease;
   }
-  [role="tablist"] button[role="tab"]:hover{
+  [role="tablist"] button[role="tab"]:hover,
+  [data-baseweb="tab"]:hover{
     background:rgba(255,255,255,.72) !important;
     color:var(--ns-navy-soft) !important;
   }
-  [role="tablist"] button[role="tab"][aria-selected="true"]{
+  [role="tablist"] button[role="tab"][aria-selected="true"],
+  [data-baseweb="tab"][aria-selected="true"]{
     background:#FFFFFF !important;
     color:var(--ns-navy) !important;
     box-shadow:var(--ns-shadow-sm);
@@ -552,7 +591,7 @@ CSS_DASHBOARD = """
 # Estilo del encabezado de las tablas HTML (Gauss y Radar comparten el mismo).
 TH_TABLA = (
     "padding:11px 10px;background:#1E3A5F;color:#EAF2FA;font-weight:700;"
-    "font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;"
+    "font-size:14px;letter-spacing:.07em;text-transform:uppercase;"
     "border-bottom:1px solid #12283F;"
 )
 
@@ -563,48 +602,48 @@ pio.templates["ns_progress"] = go.layout.Template(
     layout=dict(
         font=dict(
             family="Inter, 'Segoe UI', system-ui, sans-serif",
-            size=12.5,
+            size=14,
             color="#41526A",
         ),
-        title=dict(font=dict(size=17, color="#16202E")),
+        title=dict(font=dict(size=22, color="#16202E")),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         xaxis=dict(
             gridcolor="#EDF1F7",
             zerolinecolor="#DDE5EE",
             linecolor="#E4EAF1",
-            tickfont=dict(size=11.5, color="#5B6B7F"),
-            title=dict(font=dict(size=12, color="#5B6B7F")),
+            tickfont=dict(size=14, color="#5B6B7F"),
+            title=dict(font=dict(size=15, color="#5B6B7F")),
         ),
         yaxis=dict(
             gridcolor="#EDF1F7",
             zerolinecolor="#DDE5EE",
             linecolor="#E4EAF1",
-            tickfont=dict(size=11.5, color="#5B6B7F"),
-            title=dict(font=dict(size=12, color="#5B6B7F")),
+            tickfont=dict(size=14, color="#5B6B7F"),
+            title=dict(font=dict(size=15, color="#5B6B7F")),
         ),
         legend=dict(
             bgcolor="rgba(255,255,255,.86)",
             bordercolor="#E4EAF1",
             borderwidth=1,
-            font=dict(size=11.5, color="#41526A"),
+            font=dict(size=14, color="#41526A"),
         ),
         hoverlabel=dict(
             bgcolor="#FFFFFF",
             bordercolor="#D9E3EF",
-            font=dict(family="Inter, 'Segoe UI', sans-serif", size=12.5, color="#16202E"),
+            font=dict(family="Inter, 'Segoe UI', sans-serif", size=14, color="#16202E"),
         ),
         polar=dict(
             bgcolor="#FBFCFE",
             radialaxis=dict(
                 gridcolor="#E7EDF5",
                 linecolor="#E4EAF1",
-                tickfont=dict(size=10, color="#8494A8"),
+                tickfont=dict(size=14, color="#8494A8"),
             ),
             angularaxis=dict(
                 gridcolor="#E7EDF5",
                 linecolor="#DDE5EE",
-                tickfont=dict(size=11.5, color="#41526A"),
+                tickfont=dict(size=15, color="#41526A"),
             ),
         ),
     )
@@ -724,9 +763,10 @@ def mostrar_landing():
     inyectar_css(CSS_BASE, CSS_LANDING)
     wordmark = ruta_logo("wordmark")
     if wordmark:
-        c0, c1, c2 = st.columns([0.5, 3, 0.5])
-        with c1:
-            st.image(str(wordmark), use_container_width=True)
+        with st.container(key="ns_landing_logo"):
+            c0, c1, c2 = st.columns([0.5, 3, 0.5])
+            with c1:
+                st.image(str(wordmark), use_container_width=True)
     else:
         st.markdown(
             "<h1 style='text-align:center;color:#eef3f8;'>NS PROGRESS DASHBOARD</h1>",
@@ -1567,7 +1607,7 @@ with tab2:
             f'<td rowspan="3" style="padding:9px 10px;text-align:left;background:{color_fondo};'
             f'vertical-align:middle;color:#5B6B7F;{borde_rowspan}">{asociacion}</td>'
             f'<td style="padding:9px 10px;text-align:center;background:{color_fondo};'
-            f'color:#7A8899;font-size:11px;font-weight:700;letter-spacing:.05em;'
+            f'color:#7A8899;font-size:13px;font-weight:700;letter-spacing:.05em;'
             f'text-transform:uppercase;{borde_arriba}">Resultado</td>'
             f"{resultado_tds}"
             f'<td style="padding:9px 10px;background:{color_fondo};{borde_arriba}"></td>'
@@ -1577,7 +1617,7 @@ with tab2:
         fila2 = (
             f"<tr>"
             f'<td style="padding:9px 10px;text-align:center;background:{color_fondo};'
-            f'color:#1E3A5F;font-size:11px;font-weight:700;letter-spacing:.05em;'
+            f'color:#1E3A5F;font-size:13px;font-weight:700;letter-spacing:.05em;'
             f'text-transform:uppercase;{borde_medio}">Z-score</td>'
             f"{zscore_tds}"
             f'<td style="padding:9px 10px;text-align:center;background:{color_fondo};'
@@ -1589,7 +1629,7 @@ with tab2:
         fila3 = (
             f"<tr>"
             f'<td style="padding:9px 10px;text-align:center;background:{color_fondo};'
-            f'color:#9A6A08;font-size:11px;font-weight:700;letter-spacing:.05em;'
+            f'color:#9A6A08;font-size:13px;font-weight:700;letter-spacing:.05em;'
             f'text-transform:uppercase;{borde_abajo}">Posición</td>'
             f"{rank_tds}"
             f'<td style="padding:9px 10px;text-align:center;background:{color_fondo};'
@@ -1675,32 +1715,27 @@ with tab3:
     if not categorias_boxplot:
         st.info("Elegí al menos una categoría para ver el gráfico.")
     else:
-        # Paleta moderna y consistente con el resto de la app (azules/navy de
-        # la Campana y el Radar, más acentos vivos para diferenciar categorías).
+        # Misma paleta que el resto de la app. Las altas de invitado se aplican
+        # sobre el DataFrame completo (no adentro del cache de cargar_datos),
+        # igual que en Campana, Radar y Comparativas.
         PALETA_BOXPLOT = [
             "#2563EB", "#0EA5A4", "#F59E0B", "#DC2626",
             "#7C3AED", "#059669", "#DB2777", "#475569",
         ]
-
-        @st.cache_data(ttl=30)
-        def cargar_columna_evaluacion(_hoja, cat, evaluacion):
-            """Carga una categoría cualquiera y devuelve un DataFrame con Nombre
-            y el valor consolidado (mejor marca entre 1ª y 2ª evaluación) de la
-            evaluación pedida, sin filas vacías."""
-            df_cat, _ = cargar_datos(_hoja, cat)
-            if evaluacion not in df_cat.columns:
-                return pd.DataFrame(columns=["nombre", "valor"])
-
-            return pd.DataFrame(
-                {"nombre": df_cat[COL_NOMBRE], "valor": df_cat[evaluacion]}
-            ).dropna(subset=["valor"])
 
         series_por_categoria = {}
         for cat in categorias_boxplot:
             hoja_cat = next((ws for ws in todas_las_hojas if ws.title == cat), None)
             if hoja_cat is None:
                 continue
-            datos_cat = cargar_columna_evaluacion(hoja_cat, cat, evaluacion_boxplot)
+            df_cat, _ = cargar_datos(hoja_cat, cat)
+            if not es_entrenador:
+                df_cat = aplicar_altas_invitado(df_cat, cat)
+            if evaluacion_boxplot not in df_cat.columns:
+                continue
+            datos_cat = pd.DataFrame(
+                {"nombre": df_cat[COL_NOMBRE], "valor": df_cat[evaluacion_boxplot]}
+            ).dropna(subset=["valor"])
             if not datos_cat.empty:
                 series_por_categoria[cat] = datos_cat
 
@@ -1727,9 +1762,9 @@ with tab3:
                     y=valores_graf,
                     name=cat,
                     boxmean=True,
-                    fillcolor=f"rgba({r},{g},{b},0.16)",
-                    line=dict(color=color_cat, width=2),
-                    marker=dict(color=color_cat, size=5, opacity=0.65),
+                    fillcolor=f"rgba({r},{g},{b},0.40)",
+                    line=dict(color=f"rgba({r},{g},{b},0.90)", width=2),
+                    marker=dict(color=color_cat, size=5, opacity=0.88),
                     customdata=np.stack([nombres_cat, valores_crudos], axis=-1),
                     hovertemplate=(
                         "<b>%{customdata[0]}</b><br>"
@@ -1746,19 +1781,19 @@ with tab3:
             fig_box.add_annotation(
                 x=cat,
                 y=tope_caja,
-                yshift=14,
+                yshift=18,
                 text=f"x̄ {media_valor:.2f} · Md {mediana_cat:.2f}",
                 showarrow=False,
-                font=dict(size=11, color=color_cat),
+                font=dict(size=14, color=color_cat),
                 align="center",
             )
 
         fig_box.update_layout(
             title=f"{evaluacion_boxplot} — comparación entre categorías",
             yaxis_title=("Z-score" if modo_boxplot == "Z-score" else evaluacion_boxplot),
-            height=560,
+            height=740,
             showlegend=False,
-            margin=dict(t=70),
+            margin=dict(t=88),
             dragmode=False,  # evita que arrastrar el mouse/dedo mueva o deforme el gráfico
             xaxis=dict(fixedrange=True),  # sin zoom/paneo horizontal
             yaxis=dict(fixedrange=True),  # sin zoom/paneo vertical
@@ -1906,7 +1941,7 @@ with tab5:
                 fig_comp.add_hline(
                     y=0, line_width=1.5, line_dash="dash", line_color="#94A3B8",
                     annotation_text="Media de la categoría", annotation_position="right",
-                    annotation_font=dict(size=10, color="#64748B"),
+                    annotation_font=dict(size=14, color="#64748B"),
                 )
                 # Debajo del nombre de cada evaluación, mostrar a qué valor real
                 # equivale el 0 (la media de esa evaluación en esta categoría),
@@ -1918,7 +1953,7 @@ with tab5:
                         etiquetas_eje.append(c)
                     else:
                         etiquetas_eje.append(
-                            f"{c}<br><span style='font-size:10px;color:#64748B'>"
+                            f"{c}<br><span style='font-size:13px;color:#64748B'>"
                             f"0 = {media_e:.2f}</span>"
                         )
 
@@ -1926,8 +1961,8 @@ with tab5:
                     barmode="group",
                     title=f"{categoria_comp} — comparativa por evaluación",
                     yaxis_title="Z-score",
-                    height=560,
-                    margin=dict(t=90, b=70),
+                    height=740,
+                    margin=dict(t=100, b=88),
                     legend=dict(orientation="h", yanchor="bottom", y=1.02),
                     dragmode=False,
                     xaxis=dict(
