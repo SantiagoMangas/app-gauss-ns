@@ -56,7 +56,7 @@ ANCHO_HOJA = 17  # columnas A hasta Q
 # ======================================================================
 CSS_BASE = """
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,800;1,600;1,700;1,800&display=swap');
 
   :root{
     --ns-navy:#16304F;
@@ -281,6 +281,11 @@ CSS_LANDING = """
     -webkit-touch-callout:none !important;
     pointer-events:none;
     filter:drop-shadow(0 8px 26px rgba(126,182,224,.20));
+    max-height:92px;
+    width:auto;
+    object-fit:contain;
+    display:block;
+    margin:0 auto;
   }
 
   /* Solo las dos tarjetas de acceso, no cualquier bloque vertical
@@ -364,14 +369,19 @@ CSS_LANDING = """
 
   .ns-landing-titulos{
     display:flex;
+    flex-direction:column;
     align-items:center;
-    justify-content:center;
-    gap:16px;
-    margin:4px 0 36px;
+    text-align:center;
+    gap:8px;
+    margin:6px 0 38px;
+    -webkit-user-select:none !important;
+    user-select:none !important;
+    pointer-events:none;
   }
   .ns-landing-cah{
-    height:52px;
+    height:64px;
     width:auto;
+    margin:2px 0 6px;
     flex-shrink:0;
     -webkit-user-select:none !important;
     user-select:none !important;
@@ -379,26 +389,29 @@ CSS_LANDING = """
     pointer-events:none;
   }
   .ns-landing-cah-txt{
-    color:#9ec5e8 !important;
-    font-size:.82rem;
+    color:var(--ns-ice-soft) !important;
+    font-size:.72rem;
     font-weight:700;
-    letter-spacing:.12em;
+    font-style:italic;
+    letter-spacing:.18em;
   }
-  .ns-landing-titulos-texto{ text-align:left; }
-  .ns-landing-titulos-texto h1{
+  .ns-landing-titulo{
     margin:0 !important;
     color:#eef3f8 !important;
-    font-size:1.55rem !important;
-    font-weight:700 !important;
-    letter-spacing:.02em;
-    line-height:1.2;
+    font-size:1.42rem !important;
+    font-weight:800 !important;
+    font-style:italic;
+    letter-spacing:-.02em;
+    line-height:1.15;
   }
-  .ns-landing-titulos-texto p{
-    margin:6px 0 0 !important;
-    color:#9ec5e8 !important;
-    font-size:.95rem !important;
+  .ns-landing-subtitulo{
+    margin:0 !important;
+    color:var(--ns-ice-soft) !important;
+    font-size:.78rem !important;
     font-weight:600 !important;
-    letter-spacing:.04em;
+    font-style:italic;
+    letter-spacing:.14em;
+    line-height:1.35;
   }
   .ns-landing-lista{
     margin:0 0 28px !important;
@@ -421,12 +434,12 @@ CSS_LANDING = """
       min-width:0 !important;
     }
     [class*="st-key-ns_landing_logo"] img{
-      max-height:110px;
+      max-height:78px;
       object-fit:contain;
     }
-    .ns-landing-titulos{ flex-direction:column; text-align:center; gap:10px; }
-    .ns-landing-titulos-texto{ text-align:center; }
-    .ns-landing-cah{ height:44px; }
+    .ns-landing-cah{ height:52px; }
+    .ns-landing-titulo{ font-size:1.18rem !important; }
+    .ns-landing-subtitulo{ letter-spacing:.08em; }
   }
 </style>
 """
@@ -779,7 +792,7 @@ def ruta_logo(tipo="wordmark"):
             "Logo 1 (6).png",
         ),
         "cah": (
-            "CAHockey.png",
+            "Logo CAH.png",
         ),
     }
     for carpeta in (DIR_ASSETS, DIR_LOGOS):
@@ -896,7 +909,7 @@ def mostrar_landing():
                 st.image(str(wordmark), use_container_width=True)
     else:
         st.markdown(
-            "<h1 style='text-align:center;color:#eef3f8;'>NS PROGRESS DASHBOARD</h1>",
+            "<p class='ns-landing-titulo' style='text-align:center;'>NS PROGRESS DASHBOARD</p>",
             unsafe_allow_html=True,
         )
     cah = ruta_logo("cah")
@@ -912,10 +925,8 @@ def mostrar_landing():
     st.markdown(
         f'<div class="ns-landing-titulos">'
         f"{cah_html}"
-        f'<div class="ns-landing-titulos-texto">'
-        f"<h1>Centro Nacional Sub16 &amp; Sub19</h1>"
-        f"<p>Batería de Evaluaciones de Rendimiento Físico</p>"
-        f"</div>"
+        f"<p class='ns-landing-titulo'>Centro Nacional Sub16 &amp; Sub19</p>"
+        f"<p class='ns-landing-subtitulo'>Batería de Evaluaciones de Rendimiento Físico</p>"
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -923,7 +934,7 @@ def mostrar_landing():
     with col_reg:
         with st.container(border=True, key="ns_card_coach"):
             st.markdown(
-                "<h3 style='color:#eef3f8;margin:4px 0 8px;'>Usuario registrado</h3>"
+                "<p style='color:#eef3f8;margin:4px 0 8px;font-size:1.17rem;font-weight:700;'>Usuario registrado</p>"
                 "<p style='color:#c5d4e0;margin:0 0 12px;font-size:0.95rem;'>"
                 "Solo para entrenador CAH</p>",
                 unsafe_allow_html=True,
@@ -950,7 +961,7 @@ def mostrar_landing():
     with col_inv:
         with st.container(border=True, key="ns_card_guest"):
             st.markdown(
-                "<h3 style='color:#eef3f8;margin:4px 0 8px;'>Usuario invitado</h3>"
+                "<p style='color:#eef3f8;margin:4px 0 8px;font-size:1.17rem;font-weight:700;'>Usuario invitado</p>"
                 "<ul class='ns-landing-lista'>"
                 "<li>Libre acceso a la aplicación</li>"
                 "<li>Posibilidad de cargar y comparar tus deportistas</li>"
