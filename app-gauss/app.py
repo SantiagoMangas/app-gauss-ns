@@ -212,7 +212,9 @@ CSS_BASE = """
   .ns-table-wrap{
     border:1px solid var(--ns-line);
     border-radius:14px;
-    overflow:hidden;
+    overflow-x:auto;
+    overflow-y:hidden;
+    -webkit-overflow-scrolling:touch;
     background:#FFFFFF;
     box-shadow:var(--ns-shadow-sm);
   }
@@ -359,6 +361,20 @@ CSS_LANDING = """
   [data-testid="stAlert"]{ border-radius:12px; }
   ::-webkit-scrollbar-thumb{ background:#28374A; background-clip:padding-box; }
   ::-webkit-scrollbar-thumb:hover{ background:#35485E; background-clip:padding-box; }
+
+  @media (max-width: 700px){
+    [data-testid="stHorizontalBlock"]{
+      flex-direction:column !important;
+    }
+    [data-testid="stHorizontalBlock"] > div{
+      width:100% !important;
+      min-width:0 !important;
+    }
+    [class*="st-key-ns_landing_logo"] img{
+      max-height:110px;
+      object-fit:contain;
+    }
+  }
 </style>
 """
 
@@ -372,7 +388,7 @@ CSS_DASHBOARD = """
   [data-testid="stAppViewContainer"] { overflow-x: hidden; }
   .block-container { padding-top: 0 !important; }
 
-  /* --- Barra superior fija (HTML), ancho real 100% --- */
+  /* --- Barra superior: logo a la izquierda, Salir a la derecha --- */
   .ns-topbar {
     position: fixed;
     top: 0;
@@ -382,50 +398,40 @@ CSS_DASHBOARD = """
     background: linear-gradient(180deg,#07090D 0%,#0C1724 100%);
     border-bottom: 1px solid rgba(126,182,224,.38);
     box-shadow: 0 8px 22px rgba(7,12,20,.18);
-    padding: 10px max(1.25rem, 5vw);
+    padding: 8px 16px;
     box-sizing: border-box;
   }
   .ns-topbar-inner {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    max-width: 72rem;
-    margin: 0 auto;
-    min-height: 48px;
+    gap: 12px;
+    width: 100%;
+    min-height: 44px;
   }
-  .ns-topbar-logo { flex: 0 1 auto; min-width: 0; }
-  .ns-topbar-pill { flex: 0 1 auto; text-align: center; }
-  .ns-topbar-slot { flex: 0 0 7.5rem; }
+  .ns-topbar-logo { flex: 1 1 auto; min-width: 0; }
+  .ns-topbar-slot { flex: 0 0 5.5rem; }
   .ns-nav-logo {
-    height: 48px;
+    height: 44px;
     width: auto;
-    max-width: min(280px, 46vw);
+    max-width: min(260px, calc(100vw - 8.5rem));
     object-fit: contain;
     display: block;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-user-drag: none;
+    pointer-events: none;
   }
   .ns-nav-fallback {
     color: #eef3f8;
     font-weight: 700;
     letter-spacing: 0.08em;
     font-size: 0.95rem;
-    line-height: 48px;
-    white-space: nowrap;
-  }
-  .ns-pill {
-    display: inline-block;
-    padding: 7px 14px;
-    border: 1px solid rgba(126,182,224,.55);
-    border-radius: 999px;
-    background: rgba(126,182,224,.08);
-    color: #9ec5e8;
-    font-size: 0.8rem;
-    font-weight: 600;
-    letter-spacing: 0.06em;
+    line-height: 44px;
     white-space: nowrap;
   }
   /* Espacio para que el contenido no quede debajo de la barra fija */
-  .ns-topbar-spacer { height: 74px; }
+  .ns-topbar-spacer { height: 64px; }
 
   /* Botón Salir: anclado a la derecha de la barra.
      .stApp + [kind] gana al hover secondary de CSS_BASE (#F8FBFE + texto claro). */
@@ -440,10 +446,10 @@ CSS_DASHBOARD = """
   .stApp [class*="st-key-ns_logout"] button[kind],
   .stApp [class*="st-key-ns_logout"] [data-testid="stBaseButton-secondary"] {
     position: fixed !important;
-    top: 14px !important;
-    right: max(1.25rem, 5vw) !important;
+    top: 12px !important;
+    right: 16px !important;
     z-index: 1000 !important;
-    width: 7.5rem !important;
+    width: 5.5rem !important;
     background: rgba(126,182,224,.12) !important;
     color: #eef3f8 !important;
     -webkit-text-fill-color: #eef3f8 !important;
@@ -585,6 +591,53 @@ CSS_DASHBOARD = """
   }
   [class*="st-key-ns_video_"] iframe,
   [class*="st-key-ns_video_"] video{ border-radius:12px; }
+
+  /* --- Responsive --- */
+  @media (max-width: 800px){
+    [data-baseweb="tab-list"], [role="tablist"]{
+      flex-wrap:wrap !important;
+      justify-content:flex-start !important;
+      gap:6px !important;
+    }
+    [role="tablist"] button[role="tab"],
+    [data-baseweb="tab"]{
+      flex:1 1 calc(50% - 6px) !important;
+      padding:8px 10px !important;
+      font-size:.85rem !important;
+    }
+    [data-testid="stHorizontalBlock"]{
+      flex-wrap:wrap !important;
+    }
+  }
+  @media (max-width: 640px){
+    .block-container{
+      padding-left:1rem !important;
+      padding-right:1rem !important;
+    }
+    .ns-topbar{ padding:8px 12px; }
+    .ns-topbar-spacer{ height:58px; }
+    .ns-topbar-slot{ flex-basis:4.6rem; }
+    .ns-nav-logo{
+      height:34px;
+      max-width:calc(100vw - 7.2rem);
+    }
+    .stApp [class*="st-key-ns_logout"] button[kind],
+    .stApp [class*="st-key-ns_logout"] [data-testid="stBaseButton-secondary"]{
+      top:10px !important;
+      right:12px !important;
+      width:4.6rem !important;
+      min-height:34px !important;
+      font-size:.85rem !important;
+    }
+    [data-testid="stHorizontalBlock"]{
+      flex-direction:column !important;
+    }
+    [data-testid="stHorizontalBlock"] > div{
+      width:100% !important;
+      min-width:0 !important;
+    }
+    [data-testid="stMetricValue"]{ font-size:1.2rem; }
+  }
 </style>
 """
 
@@ -826,14 +879,9 @@ def mostrar_landing():
                 st.rerun()
 
 
-def barra_sesion(es_entrenador):
+def barra_sesion():
     inyectar_css(CSS_BASE, CSS_DASHBOARD)
 
-    texto = (
-        "ENTRENADOR · edita la planilla"
-        if es_entrenador
-        else "INVITADO · no se guarda"
-    )
     data_uri = _logo_navbar_data_uri()
     if data_uri:
         logo_html = (
@@ -846,7 +894,6 @@ def barra_sesion(es_entrenador):
         f'<div class="ns-topbar">'
         f'  <div class="ns-topbar-inner">'
         f'    <div class="ns-topbar-logo">{logo_html}</div>'
-        f'    <div class="ns-topbar-pill"><span class="ns-pill">{html_lib.escape(texto)}</span></div>'
         f'    <div class="ns-topbar-slot" aria-hidden="true"></div>'
         f'  </div>'
         f'</div>'
@@ -1069,7 +1116,7 @@ if st.session_state.rol not in ("coach", "guest"):
     st.stop()
 
 es_entrenador = st.session_state.rol == "coach"
-barra_sesion(es_entrenador)
+barra_sesion()
 
 try:
     libro = conectar()
