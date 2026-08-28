@@ -362,6 +362,56 @@ CSS_LANDING = """
   ::-webkit-scrollbar-thumb{ background:#28374A; background-clip:padding-box; }
   ::-webkit-scrollbar-thumb:hover{ background:#35485E; background-clip:padding-box; }
 
+  .ns-landing-titulos{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:16px;
+    margin:4px 0 36px;
+  }
+  .ns-landing-cah{
+    height:52px;
+    width:auto;
+    flex-shrink:0;
+    -webkit-user-select:none !important;
+    user-select:none !important;
+    -webkit-user-drag:none !important;
+    pointer-events:none;
+  }
+  .ns-landing-cah-txt{
+    color:#9ec5e8 !important;
+    font-size:.82rem;
+    font-weight:700;
+    letter-spacing:.12em;
+  }
+  .ns-landing-titulos-texto{ text-align:left; }
+  .ns-landing-titulos-texto h1{
+    margin:0 !important;
+    color:#eef3f8 !important;
+    font-size:1.55rem !important;
+    font-weight:700 !important;
+    letter-spacing:.02em;
+    line-height:1.2;
+  }
+  .ns-landing-titulos-texto p{
+    margin:6px 0 0 !important;
+    color:#9ec5e8 !important;
+    font-size:.95rem !important;
+    font-weight:600 !important;
+    letter-spacing:.04em;
+  }
+  .ns-landing-lista{
+    margin:0 0 28px !important;
+    padding-left:1.15rem !important;
+    color:#c5d4e0 !important;
+    font-size:.95rem !important;
+    line-height:1.45;
+  }
+  .ns-landing-lista li{
+    margin:0 0 6px;
+    color:#c5d4e0 !important;
+  }
+
   @media (max-width: 700px){
     [data-testid="stHorizontalBlock"]{
       flex-direction:column !important;
@@ -374,6 +424,9 @@ CSS_LANDING = """
       max-height:110px;
       object-fit:contain;
     }
+    .ns-landing-titulos{ flex-direction:column; text-align:center; gap:10px; }
+    .ns-landing-titulos-texto{ text-align:center; }
+    .ns-landing-cah{ height:44px; }
   }
 </style>
 """
@@ -725,6 +778,9 @@ def ruta_logo(tipo="wordmark"):
             "nico-sesma.png",
             "Logo 1 (6).png",
         ),
+        "cah": (
+            "CAHockey.png",
+        ),
     }
     for carpeta in (DIR_ASSETS, DIR_LOGOS):
         for nombre in por_tipo.get(tipo, ()):
@@ -843,10 +899,24 @@ def mostrar_landing():
             "<h1 style='text-align:center;color:#eef3f8;'>NS PROGRESS DASHBOARD</h1>",
             unsafe_allow_html=True,
         )
+    cah = ruta_logo("cah")
+    if cah and cah.is_file():
+        mime = "image/svg+xml" if cah.suffix.lower() == ".svg" else "image/png"
+        uri = f"data:{mime};base64,{base64.b64encode(cah.read_bytes()).decode('ascii')}"
+        cah_html = (
+            f'<img class="ns-landing-cah" src="{uri}" '
+            f'alt="Confederación Argentina de Hockey">'
+        )
+    else:
+        cah_html = '<span class="ns-landing-cah-txt">CAH</span>'
     st.markdown(
-        "<p style='text-align:center;color:#9ec5e8;margin:8px 0 40px;"
-        "letter-spacing:0.16em;font-size:0.95rem;font-weight:600;'>"
-        "EVALUACIONES · CONCENTRACIÓN NACIONAL</p>",
+        f'<div class="ns-landing-titulos">'
+        f"{cah_html}"
+        f'<div class="ns-landing-titulos-texto">'
+        f"<h1>Centro Nacional Sub16 &amp; Sub19</h1>"
+        f"<p>Batería de Evaluaciones de Rendimiento Físico</p>"
+        f"</div>"
+        f"</div>",
         unsafe_allow_html=True,
     )
     col_reg, col_inv = st.columns(2, gap="large")
@@ -855,7 +925,7 @@ def mostrar_landing():
             st.markdown(
                 "<h3 style='color:#eef3f8;margin:4px 0 8px;'>Usuario registrado</h3>"
                 "<p style='color:#c5d4e0;margin:0 0 12px;font-size:0.95rem;'>"
-                "Entrenadores: mail y contraseña. Pueden editar la planilla.</p>",
+                "Solo para entrenador CAH</p>",
                 unsafe_allow_html=True,
             )
             try:
@@ -881,9 +951,11 @@ def mostrar_landing():
         with st.container(border=True, key="ns_card_guest"):
             st.markdown(
                 "<h3 style='color:#eef3f8;margin:4px 0 8px;'>Usuario invitado</h3>"
-                "<p style='color:#c5d4e0;margin:0 0 28px;font-size:0.95rem;'>"
-                "Podés mirar y cargar a alguien para compararte. "
-                "Al cerrar, se borra. No toca la planilla.</p>",
+                "<ul class='ns-landing-lista'>"
+                "<li>Libre acceso a la aplicación</li>"
+                "<li>Posibilidad de cargar y comparar tus deportistas</li>"
+                "<li>Al cerrar la app, todo dato cargado se borrará</li>"
+                "</ul>",
                 unsafe_allow_html=True,
             )
             if st.button(
