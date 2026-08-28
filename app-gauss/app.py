@@ -765,6 +765,24 @@ def spreadsheet_id():
     return str(_secreto("spreadsheet_id") or SPREADSHEET_ID_FALLBACK)
 
 
+def guest_spreadsheet_id():
+    """Planilla anonimizada para invitados. None si no está configurada."""
+    valor = _secreto("guest_spreadsheet_id")
+    if valor is None:
+        return None
+    texto = str(valor).strip()
+    return texto or None
+
+
+def spreadsheet_id_activo(es_entrenador):
+    """Entrenador → spreadsheet_id; invitado → guest_spreadsheet_id si existe."""
+    if not es_entrenador:
+        id_invitado = guest_spreadsheet_id()
+        if id_invitado:
+            return id_invitado
+    return spreadsheet_id()
+
+
 def info_cuenta_servicio():
     """Credenciales desde secrets; si no hay, credentials.json local (gitignored)."""
     try:
@@ -780,7 +798,7 @@ def info_cuenta_servicio():
 # CONEXIÓN A GOOGLE SHEETS
 # ----------------------------------------------------------------------
 @st.cache_resource
-def conectar():
+def conectar(id_libro):
     info = info_cuenta_servicio()
     if not info:
         raise RuntimeError(
@@ -790,7 +808,7 @@ def conectar():
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
     creds = Credentials.from_service_account_info(info, scopes=scopes)
     cliente = gspread.authorize(creds)
-    return cliente.open_by_key(spreadsheet_id())
+    return cliente.open_by_key(id_libro)
 
 
 def _bytes_iguales(a, b):
@@ -1119,7 +1137,7 @@ es_entrenador = st.session_state.rol == "coach"
 barra_sesion()
 
 try:
-    libro = conectar()
+    libro = conectar(spreadsheet_id_activo(es_entrenador))
 except Exception as exc:
     st.error(
         "No se pudo abrir el Google Sheet. Revisá secrets / credentials.json "

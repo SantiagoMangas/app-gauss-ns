@@ -1,0 +1,7 @@
+# En Railway: Root Directory = app-gauss (igual que rootDir en Render).
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "bash start.sh"
+restartPolicyType = "ON_FAILURE"

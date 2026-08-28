@@ -1,0 +1,9 @@
+# Fallback si el servicio se conecta a la raíz del repo (sin Root Directory).
+# Preferí Root Directory = app-gauss y el railway.toml de esa carpeta.
+[build]
+builder = "NIXPACKS"
+buildCommand = "pip install -r app-gauss/requirements.txt"
+
+[deploy]
+startCommand = "bash app-gauss/start.sh"
+restartPolicyType = "ON_FAILURE"
