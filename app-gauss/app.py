@@ -1060,7 +1060,7 @@ def guardar_entrenador(hoja, nombre, asoc, fecha, cual_eval, celdas):
 
 
 @st.cache_data(ttl=30)
-def cargar_datos(_hoja, categoria):
+def cargar_datos(_hoja, categoria, id_libro):
     """Lee la hoja con el layout A-Q y devuelve un DataFrame normalizado.
 
     Layout esperado (igual en todas las hojas de categorías):
@@ -1073,8 +1073,9 @@ def cargar_datos(_hoja, categoria):
       '<eval> (1ª)', '<eval> (2ª)' y '<eval>' (la MEJOR de las dos).
     En tiempos (Sprint 30m, Test T) "mejor" = valor más bajo; en el resto, el más alto.
 
-    'categoria' se pasa aparte (además de _hoja) para que Streamlit cachee un
-    resultado distinto por cada hoja, aunque _hoja no se use para el cacheo.
+    '_hoja' no entra en la clave del cache (Streamlit no hashea el objeto gspread).
+    'categoria' e 'id_libro' sí: así entrenador e invitado no se pisan aunque
+    las dos planillas tengan las mismas pestañas.
     """
     valores = _hoja.get_all_values()
     filas = [
@@ -1107,9 +1108,12 @@ def normalizar(nombre):
 
 
 @st.cache_data(ttl=30)
-def cargar_videos(_libro):
+def cargar_videos(_libro, id_libro):
     """Lee la pestaña 'Videos' (Título, Link, Descripción). Si no existe todavía,
-    devuelve una tabla vacía en vez de romper la app."""
+    devuelve una tabla vacía en vez de romper la app.
+
+    'id_libro' va en la clave del cache para no mezclar planilla real y anonimizada.
+    """
     columnas = ["Título", "Link", "Descripción"]
     try:
         hoja_videos = _libro.worksheet(HOJA_VIDEOS)
@@ -1136,8 +1140,9 @@ if st.session_state.rol not in ("coach", "guest"):
 es_entrenador = st.session_state.rol == "coach"
 barra_sesion()
 
+id_libro = spreadsheet_id_activo(es_entrenador)
 try:
-    libro = conectar(spreadsheet_id_activo(es_entrenador))
+    libro = conectar(id_libro)
 except Exception as exc:
     st.error(
         "No se pudo abrir el Google Sheet. Revisá secrets / credentials.json "
@@ -1153,7 +1158,7 @@ st.caption("Evaluaciones · Concentración Nacional")
 categoria = st.selectbox("Categoría:", categorias)
 hoja = next(ws for ws in todas_las_hojas if ws.title == categoria)
 
-df, _ = cargar_datos(hoja, categoria)
+df, _ = cargar_datos(hoja, categoria, id_libro)
 df = df.copy()
 if not es_entrenador:
     df = aplicar_altas_invitado(df, categoria)
@@ -1793,7 +1798,7 @@ with tab3:
             hoja_cat = next((ws for ws in todas_las_hojas if ws.title == cat), None)
             if hoja_cat is None:
                 continue
-            df_cat, _ = cargar_datos(hoja_cat, cat)
+            df_cat, _ = cargar_datos(hoja_cat, cat, id_libro)
             if not es_entrenador:
                 df_cat = aplicar_altas_invitado(df_cat, cat)
             if evaluacion_boxplot not in df_cat.columns:
@@ -1927,7 +1932,7 @@ with tab5:
         )
 
     hoja_comp = next((ws for ws in todas_las_hojas if ws.title == categoria_comp), None)
-    df_comp, _ = cargar_datos(hoja_comp, categoria_comp) if hoja_comp is not None else (pd.DataFrame(), None)
+    df_comp, _ = cargar_datos(hoja_comp, categoria_comp, id_libro) if hoja_comp is not None else (pd.DataFrame(), None)
     if not es_entrenador and not df_comp.empty:
         df_comp = aplicar_altas_invitado(df_comp, categoria_comp)
 
@@ -2067,7 +2072,7 @@ with tab4:
         "categoría elegida arriba."
     )
 
-    videos_df = cargar_videos(libro)
+    videos_df = cargar_videos(libro, id_libro)
     videos_df = videos_df[videos_df["Link"].astype(str).str.strip() != ""]
 
     if videos_df.empty:
