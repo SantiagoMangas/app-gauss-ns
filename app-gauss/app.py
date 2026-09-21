@@ -863,6 +863,11 @@ def info_cuenta_servicio():
         return None
 
 
+def email_cuenta_servicio():
+    info = info_cuenta_servicio() or {}
+    return str(info.get("client_email") or "").strip() or None
+
+
 # ----------------------------------------------------------------------
 # CONEXIÓN A GOOGLE SHEETS
 # ----------------------------------------------------------------------
@@ -874,7 +879,10 @@ def conectar(id_libro):
             "Faltan las credenciales de Google. Completá .streamlit/secrets.toml "
             "(ver secrets.toml.example) o dejá credentials.json en esta carpeta."
         )
-    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
+    ]
     creds = Credentials.from_service_account_info(info, scopes=scopes)
     cliente = gspread.authorize(creds)
     return cliente.open_by_key(id_libro)
@@ -1385,17 +1393,37 @@ with tab1:
                         asoc_ok = asoc_nueva.strip()
                         fecha_ok = fecha_nueva.strip()
                         if es_entrenador:
-                            nueva = guardar_entrenador(
-                                hoja, nombre_ok, asoc_ok, fecha_ok, cual_eval, celdas
-                            )
-                            st.cache_data.clear()
-                            if nueva:
-                                st.success(f"{nombre_ok} guardada en el Sheet.")
-                            else:
-                                st.success(
-                                    f"Se actualizó la {cual_eval.lower()} de {nombre_ok}."
+                            try:
+                                nueva = guardar_entrenador(
+                                    hoja,
+                                    nombre_ok,
+                                    asoc_ok,
+                                    fecha_ok,
+                                    cual_eval,
+                                    celdas,
                                 )
-                            st.rerun()
+                            except gspread.exceptions.APIError as exc:
+                                bot = email_cuenta_servicio() or "la cuenta de servicio"
+                                if "403" in str(exc):
+                                    st.error(
+                                        "No se pudo guardar: el bot lee la planilla pero no tiene "
+                                        "permiso para editarla. En Google Sheets abrí "
+                                        f"«{libro.title}» → Compartir → agregá {bot} como Editor "
+                                        "(no Visualizador). Si ya está, revisá que no haya rangos "
+                                        "protegidos que bloqueen al bot."
+                                    )
+                                else:
+                                    st.error("No se pudo guardar en el Google Sheet.")
+                                    st.caption(str(exc))
+                            else:
+                                st.cache_data.clear()
+                                if nueva:
+                                    st.success(f"{nombre_ok} guardada en el Sheet.")
+                                else:
+                                    st.success(
+                                        f"Se actualizó la {cual_eval.lower()} de {nombre_ok}."
+                                    )
+                                st.rerun()
                         else:
                             alta = fila_alta_vacia(nombre_ok, asoc_ok)
                             if cual_eval == "1ª evaluación":
