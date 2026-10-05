@@ -231,6 +231,11 @@ def main():
         assert c in df.columns, c
     n_ift = int(df["30-15 IFT"].notna().sum())
     assert n_ift >= 100, f"30-15 IFT mal mapeado: solo {n_ift} valores"
+    med_tt = float(df["Test T (Mod)"].median())
+    med_vp = float(df["Vel. Promedio"].median())
+    assert med_tt < 12 and med_vp > 15, (
+        f"Test T ({med_tt}) y Vel. Promedio ({med_vp}) parecen intercambiados"
+    )
     n_all = len(filtrar_dataset(df, FILTRO_TODOS, FILTRO_TODOS, FILTRO_TODAS, FILTRO_TODAS))
     n_selec = len(
         filtrar_dataset(df, FILTRO_TODOS, FILTRO_SELEC_ARG, FILTRO_TODAS, FILTRO_TODAS)

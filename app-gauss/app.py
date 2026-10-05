@@ -56,6 +56,8 @@ ORDEN_COLUMNAS_EVAL_HOJA_NUEVO = [
     "Test T (Mod)",
     "30-15 IFT",
 ]
+# Incrementar si cambia el mapeo columnas ↔ Sheet (invalida cache de Streamlit).
+DATA_SHEET_VERSION = 2
 
 SUF_1 = " (1ª)"
 SUF_2 = " (2ª)"
@@ -1149,7 +1151,7 @@ def cargar_y_filtrar_categoria(
     hoja_cat = next((ws for ws in todas_las_hojas if ws.title == cat), None)
     if hoja_cat is None:
         return pd.DataFrame()
-    df_cat, _ = cargar_datos(hoja_cat, cat, id_libro, layout)
+    df_cat, _ = cargar_datos(hoja_cat, cat, id_libro, layout, DATA_SHEET_VERSION)
     if not es_entrenador_flag:
         df_cat = aplicar_altas_invitado(df_cat, cat)
     return filtrar_dataset(
@@ -1323,7 +1325,7 @@ def guardar_entrenador(hoja, nombre, asoc, fecha, cual_eval, celdas, layout, reg
 
 
 @st.cache_data(ttl=30)
-def cargar_datos(_hoja, categoria, id_libro, layout):
+def cargar_datos(_hoja, categoria, id_libro, layout, _data_version):
     if layout == "nuevo":
         return _cargar_datos_nuevo(_hoja)
     return _cargar_datos_viejo(_hoja)
@@ -1447,9 +1449,11 @@ except Exception as exc:
 todas_las_hojas = libro.worksheets()
 categorias = [ws.title for ws in todas_las_hojas if ws.title != HOJA_VIDEOS]
 layout_datos = layout_planilla(es_entrenador)
-cols_eval_gauss = COLS_EVAL_TODAS if layout_datos == "nuevo" else COLS_EVAL
-cols_eval_comparativas = COLS_EVAL_TODAS if layout_datos == "nuevo" else COLS_EVAL
-cols_eval_boxplot = COLS_EVAL_TODAS if layout_datos == "nuevo" else COLS_EVAL
+cols_eval_gauss = (
+    ORDEN_COLUMNAS_EVAL_HOJA_NUEVO if layout_datos == "nuevo" else COLS_EVAL
+)
+cols_eval_comparativas = cols_eval_gauss
+cols_eval_boxplot = cols_eval_gauss
 
 st.caption("Evaluaciones · Concentración Nacional")
 row_f1_1, row_f1_2, row_f1_3 = st.columns(3)
@@ -1458,7 +1462,7 @@ with row_f1_1:
 row_f2_1, row_f2_2 = st.columns(2)
 
 hoja = next(ws for ws in todas_las_hojas if ws.title == categoria)
-df_base, _ = cargar_datos(hoja, categoria, id_libro, layout_datos)
+df_base, _ = cargar_datos(hoja, categoria, id_libro, layout_datos, DATA_SHEET_VERSION)
 if not es_entrenador:
     df_base = aplicar_altas_invitado(df_base, categoria)
 
