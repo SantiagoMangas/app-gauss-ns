@@ -22,6 +22,16 @@ COL_ANIO = "Año última eval"
 COLS_EVAL = ["SJ", "CMJ", "ABK", "Sprint 30m", "Test T (Mod)", "30-15 IFT"]
 COLS_EVAL_EXTRA = ["Vel. Promedio", "Vel. Max."]
 COLS_EVAL_TODAS = COLS_EVAL + COLS_EVAL_EXTRA
+ORDEN_COLUMNAS_EVAL_HOJA_NUEVO = [
+    "SJ",
+    "CMJ",
+    "ABK",
+    "Sprint 30m",
+    "Vel. Promedio",
+    "Vel. Max.",
+    "Test T (Mod)",
+    "30-15 IFT",
+]
 SUF_1 = " (1ª)"
 SUF_2 = " (2ª)"
 ANCHO_HOJA_VIEJO = 17
@@ -135,9 +145,9 @@ def cargar_datos_nuevo(hoja):
             COL_SELEC: str(fila[5]).strip(),
             COL_FECHA_2: fila[14],
         }
-        for c, raw in zip(COLS_EVAL_TODAS, fila[6:14]):
+        for c, raw in zip(ORDEN_COLUMNAS_EVAL_HOJA_NUEVO, fila[6:14]):
             rec[f"{c}{SUF_1}"] = parse_numero(raw)
-        for c, raw in zip(COLS_EVAL_TODAS, fila[15:23]):
+        for c, raw in zip(ORDEN_COLUMNAS_EVAL_HOJA_NUEVO, fila[15:23]):
             rec[f"{c}{SUF_2}"] = parse_numero(raw)
         registros.append(rec)
     df = pd.DataFrame(registros)
@@ -219,6 +229,8 @@ def main():
     assert len(df) >= 180, len(df)
     for c in COLS_EVAL + COLS_EVAL_EXTRA:
         assert c in df.columns, c
+    n_ift = int(df["30-15 IFT"].notna().sum())
+    assert n_ift >= 100, f"30-15 IFT mal mapeado: solo {n_ift} valores"
     n_all = len(filtrar_dataset(df, FILTRO_TODOS, FILTRO_TODOS, FILTRO_TODAS, FILTRO_TODAS))
     n_selec = len(
         filtrar_dataset(df, FILTRO_TODOS, FILTRO_SELEC_ARG, FILTRO_TODAS, FILTRO_TODAS)

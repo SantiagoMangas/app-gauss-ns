@@ -45,6 +45,17 @@ COL_ANIO = "Año última eval"
 COLS_EVAL = ["SJ", "CMJ", "ABK", "Sprint 30m", "Test T (Mod)", "30-15 IFT"]
 COLS_EVAL_EXTRA = ["Vel. Promedio", "Vel. Max."]
 COLS_EVAL_TODAS = COLS_EVAL + COLS_EVAL_EXTRA
+# Orden en Google Sheet (cols G–N y P–W): vel. antes de Test T / 30-IFT.
+ORDEN_COLUMNAS_EVAL_HOJA_NUEVO = [
+    "SJ",
+    "CMJ",
+    "ABK",
+    "Sprint 30m",
+    "Vel. Promedio",
+    "Vel. Max.",
+    "Test T (Mod)",
+    "30-15 IFT",
+]
 
 SUF_1 = " (1ª)"
 SUF_2 = " (2ª)"
@@ -1371,9 +1382,9 @@ def _cargar_datos_nuevo(_hoja):
             COL_SELEC: str(fila[5]).strip(),
             COL_FECHA_2: fila[14],
         }
-        for c, raw in zip(COLS_EVAL_TODAS, fila[6:14]):
+        for c, raw in zip(ORDEN_COLUMNAS_EVAL_HOJA_NUEVO, fila[6:14]):
             rec[f"{c}{SUF_1}"] = parse_numero(raw)
-        for c, raw in zip(COLS_EVAL_TODAS, fila[15:23]):
+        for c, raw in zip(ORDEN_COLUMNAS_EVAL_HOJA_NUEVO, fila[15:23]):
             rec[f"{c}{SUF_2}"] = parse_numero(raw)
         registros.append(rec)
 
@@ -1624,7 +1635,12 @@ with tab1:
                             "Estos resultados no son números: " + ", ".join(invalidos)
                         )
                     else:
-                        numeros = [parse_numero(vals_nuevos[c]) for c in cols_eval_gauss]
+                        orden_celdas = (
+                            ORDEN_COLUMNAS_EVAL_HOJA_NUEVO
+                            if layout_datos == "nuevo"
+                            else cols_eval_gauss
+                        )
+                        numeros = [parse_numero(vals_nuevos[c]) for c in orden_celdas]
                         celdas = [formato_celda(n) for n in numeros]
                         nombre_ok = nombre_nuevo.strip()
                         asoc_ok = asoc_nueva.strip()
