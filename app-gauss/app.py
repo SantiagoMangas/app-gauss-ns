@@ -1055,7 +1055,15 @@ def layout_planilla(es_entrenador):
 
 
 def columnas_eval_en_df(df):
-    return [c for c in COLS_EVAL_TODAS if c in df.columns]
+    presentes = []
+    for c in COLS_EVAL_TODAS:
+        if (
+            c in df.columns
+            or f"{c}{SUF_1}" in df.columns
+            or f"{c}{SUF_2}" in df.columns
+        ):
+            presentes.append(c)
+    return presentes
 
 
 def parse_fecha(valor):
@@ -1142,7 +1150,15 @@ def consolidar_mejores(df):
     """Por cada test, se queda con la mejor marca (ignora vacíos)."""
     out = df.copy()
     for c in columnas_eval_en_df(out):
-        stacked = pd.concat([out[f"{c}{SUF_1}"], out[f"{c}{SUF_2}"]], axis=1)
+        c1, c2 = f"{c}{SUF_1}", f"{c}{SUF_2}"
+        partes = []
+        if c1 in out.columns:
+            partes.append(out[c1])
+        if c2 in out.columns:
+            partes.append(out[c2])
+        if not partes:
+            continue
+        stacked = pd.concat(partes, axis=1)
         out[c] = stacked.min(axis=1) if c in EVALUACIONES_INVERTIDAS else stacked.max(axis=1)
     return out
 
