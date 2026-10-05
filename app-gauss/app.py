@@ -967,7 +967,7 @@ def mostrar_landing():
                     unsafe_allow_html=True,
                 )
             with st.form("form_login_entrenador"):
-                email = st.text_input("Email", placeholder="admin@ns.com")
+                email = st.text_input("Email")
                 password = st.text_input("Contraseña", type="password")
                 entrar = st.form_submit_button(
                     "Entrar", type="primary", use_container_width=True
