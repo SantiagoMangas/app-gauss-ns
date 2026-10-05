@@ -9,6 +9,7 @@ import hmac
 import html as html_lib
 import json
 import textwrap
+import unicodedata
 from pathlib import Path
 
 import numpy as np
@@ -1109,17 +1110,41 @@ def es_convocada_seleccion(valor):
     return s in ("selec. arg", "selec arg") or ("selec" in s and "arg" in s)
 
 
+def normalizar_clave_filtro(valor):
+    """Compara regiones/asociaciones sin depender de mayúsculas, tildes ni espacios extra."""
+    s = str(valor).strip().lower()
+    if not s or s in ("none", "nan"):
+        return ""
+    s = unicodedata.normalize("NFD", s)
+    s = "".join(c for c in s if unicodedata.category(c) != "Mn")
+    s = s.replace("-", " ")
+    return " ".join(s.split())
+
+
 def opciones_filtro_texto(serie, etiqueta_todas):
     if serie is None or serie.empty:
         return [etiqueta_todas]
-    vals = sorted(
-        {
-            str(x).strip()
-            for x in serie.dropna()
-            if str(x).strip() and str(x).strip().lower() not in ("none", "nan")
-        }
-    )
+    por_clave = {}
+    for x in serie.dropna():
+        etiqueta = str(x).strip()
+        if not etiqueta or etiqueta.lower() in ("none", "nan"):
+            continue
+        clave = normalizar_clave_filtro(etiqueta)
+        if clave not in por_clave or etiqueta < por_clave[clave]:
+            por_clave[clave] = etiqueta
+    vals = sorted(por_clave.values(), key=lambda t: t.casefold())
     return [etiqueta_todas] + vals
+
+
+def opciones_asociacion_para_region(df, filtro_region):
+    """Asociaciones visibles según región (cascada). Sin columna Región → todas."""
+    if df.empty or COL_ASOC not in df.columns:
+        return [FILTRO_TODAS]
+    sub = df
+    if filtro_region != FILTRO_TODAS and COL_REGION in df.columns:
+        clave_r = normalizar_clave_filtro(filtro_region)
+        sub = df[df[COL_REGION].map(normalizar_clave_filtro) == clave_r]
+    return opciones_filtro_texto(sub[COL_ASOC], FILTRO_TODAS)
 
 
 def filtrar_dataset(df, filtro_ano, filtro_conv, filtro_region, filtro_asoc):
@@ -1131,9 +1156,11 @@ def filtrar_dataset(df, filtro_ano, filtro_conv, filtro_region, filtro_asoc):
     if filtro_conv == FILTRO_SELEC_ARG and COL_SELEC in df.columns:
         mask &= df[COL_SELEC].map(es_convocada_seleccion)
     if filtro_region != FILTRO_TODAS and COL_REGION in df.columns:
-        mask &= df[COL_REGION].astype(str).str.strip() == filtro_region
+        clave_r = normalizar_clave_filtro(filtro_region)
+        mask &= df[COL_REGION].map(normalizar_clave_filtro) == clave_r
     if filtro_asoc != FILTRO_TODAS:
-        mask &= df[COL_ASOC].astype(str).str.strip() == filtro_asoc
+        clave_a = normalizar_clave_filtro(filtro_asoc)
+        mask &= df[COL_ASOC].map(normalizar_clave_filtro) == clave_a
     return df.loc[mask].copy()
 
 
@@ -1487,12 +1514,20 @@ with row_f2_1:
         ),
         key="filtro_region",
     )
+opciones_asoc = opciones_asociacion_para_region(
+    df_base,
+    filtro_region if COL_REGION in df_base.columns else FILTRO_TODAS,
+)
+if st.session_state.get("filtro_asoc") not in opciones_asoc:
+    st.session_state["filtro_asoc"] = FILTRO_TODAS
 with row_f2_2:
     filtro_asoc = st.selectbox(
         "Asociación:",
-        opciones_filtro_texto(df_base[COL_ASOC], FILTRO_TODAS),
+        opciones_asoc,
         key="filtro_asoc",
     )
+    if COL_REGION in df_base.columns and filtro_region != FILTRO_TODAS:
+        st.caption("Solo asociaciones de la región seleccionada.")
 
 df = filtrar_dataset(df_base, filtro_ano, filtro_conv, filtro_region, filtro_asoc)
 
@@ -2200,8 +2235,9 @@ with tab3:
                         regiones_en_cat[COL_SELEC].map(es_convocada_seleccion)
                     ]
                 else:
+                    clave_g = normalizar_clave_filtro(grupo)
                     sub = regiones_en_cat[
-                        regiones_en_cat[COL_REGION].astype(str).str.strip() == grupo
+                        regiones_en_cat[COL_REGION].map(normalizar_clave_filtro) == clave_g
                     ]
                 datos = pd.DataFrame(
                     {"nombre": sub[COL_NOMBRE], "valor": sub[evaluacion_boxplot]}
