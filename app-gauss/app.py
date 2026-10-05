@@ -32,17 +32,29 @@ HOJA_VIDEOS = "Videos"
 # En estas se invierte el signo del Z-score para que "mejor" sea siempre positivo.
 EVALUACIONES_INVERTIDAS = {"Sprint 30m", "Test T (Mod)"}
 
-# Nombres internos de las columnas. El orden de COLS_EVAL debe coincidir con el
-# de las columnas E-J (1ª evaluación) y L-Q (2ª evaluación) del Google Sheet.
 COL_NUM = "N°"
 COL_NOMBRE = "Nombre y Apellido"
 COL_FECHA_1 = "Fecha 1ª evaluación"
 COL_ASOC = "Asociación"
+COL_REGION = "Región"
+COL_SELEC = "Selec. ARG"
 COL_FECHA_2 = "Fecha 2ª evaluación"
+COL_ANIO = "Año última eval"
+
+# Radar y ranking: sin velocidad promedio / máxima.
 COLS_EVAL = ["SJ", "CMJ", "ABK", "Sprint 30m", "Test T (Mod)", "30-15 IFT"]
+COLS_EVAL_EXTRA = ["Vel. Promedio", "Vel. Max."]
+COLS_EVAL_TODAS = COLS_EVAL + COLS_EVAL_EXTRA
+
 SUF_1 = " (1ª)"
 SUF_2 = " (2ª)"
-ANCHO_HOJA = 17  # columnas A hasta Q
+ANCHO_HOJA_VIEJO = 17  # A–Q (planilla invitados / layout anterior)
+ANCHO_HOJA_NUEVO = 23  # planilla entrenadores actualizada
+
+FILTRO_TODOS = "Todos"
+FILTRO_TODAS = "Todas"
+FILTRO_SELEC_ARG = "Selección Argentina"
+OPCION_SELEC_BOX = "Selección Argentina"
 
 
 # ======================================================================
@@ -1038,10 +1050,98 @@ def formato_celda(valor):
     return texto.replace(".", ",")
 
 
+def layout_planilla(es_entrenador):
+    return "nuevo" if es_entrenador else "viejo"
+
+
+def columnas_eval_en_df(df):
+    return [c for c in COLS_EVAL_TODAS if c in df.columns]
+
+
+def parse_fecha(valor):
+    if valor is None:
+        return pd.NaT
+    s = str(valor).strip()
+    if not s or s.lower() in ("none", "nan"):
+        return pd.NaT
+    for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%m/%d/%Y"):
+        try:
+            return pd.to_datetime(s, format=fmt, dayfirst=True)
+        except (ValueError, TypeError):
+            continue
+    parsed = pd.to_datetime(s, dayfirst=True, errors="coerce")
+    return parsed if pd.notna(parsed) else pd.NaT
+
+
+def anio_ultima_evaluacion(fecha_1, fecha_2):
+    fechas = [parse_fecha(fecha_1), parse_fecha(fecha_2)]
+    validas = [f for f in fechas if pd.notna(f)]
+    if not validas:
+        return np.nan
+    return int(max(validas).year)
+
+
+def es_convocada_seleccion(valor):
+    s = str(valor).strip().lower()
+    if s in ("", "none", "nan", "no", "0"):
+        return False
+    return s in ("selec. arg", "selec arg") or ("selec" in s and "arg" in s)
+
+
+def opciones_filtro_texto(serie, etiqueta_todas):
+    if serie is None or serie.empty:
+        return [etiqueta_todas]
+    vals = sorted(
+        {
+            str(x).strip()
+            for x in serie.dropna()
+            if str(x).strip() and str(x).strip().lower() not in ("none", "nan")
+        }
+    )
+    return [etiqueta_todas] + vals
+
+
+def filtrar_dataset(df, filtro_ano, filtro_conv, filtro_region, filtro_asoc):
+    if df.empty:
+        return df.copy()
+    mask = pd.Series(True, index=df.index)
+    if filtro_ano != FILTRO_TODOS and COL_ANIO in df.columns:
+        mask &= df[COL_ANIO] == int(filtro_ano)
+    if filtro_conv == FILTRO_SELEC_ARG and COL_SELEC in df.columns:
+        mask &= df[COL_SELEC].map(es_convocada_seleccion)
+    if filtro_region != FILTRO_TODAS and COL_REGION in df.columns:
+        mask &= df[COL_REGION].astype(str).str.strip() == filtro_region
+    if filtro_asoc != FILTRO_TODAS:
+        mask &= df[COL_ASOC].astype(str).str.strip() == filtro_asoc
+    return df.loc[mask].copy()
+
+
+def cargar_y_filtrar_categoria(
+    cat,
+    todas_las_hojas,
+    id_libro,
+    layout,
+    filtro_ano,
+    filtro_conv,
+    filtro_region,
+    filtro_asoc,
+    es_entrenador_flag,
+):
+    hoja_cat = next((ws for ws in todas_las_hojas if ws.title == cat), None)
+    if hoja_cat is None:
+        return pd.DataFrame()
+    df_cat, _ = cargar_datos(hoja_cat, cat, id_libro, layout)
+    if not es_entrenador_flag:
+        df_cat = aplicar_altas_invitado(df_cat, cat)
+    return filtrar_dataset(
+        df_cat, filtro_ano, filtro_conv, filtro_region, filtro_asoc
+    )
+
+
 def consolidar_mejores(df):
     """Por cada test, se queda con la mejor marca (ignora vacíos)."""
     out = df.copy()
-    for c in COLS_EVAL:
+    for c in columnas_eval_en_df(out):
         stacked = pd.concat([out[f"{c}{SUF_1}"], out[f"{c}{SUF_2}"]], axis=1)
         out[c] = stacked.min(axis=1) if c in EVALUACIONES_INVERTIDAS else stacked.max(axis=1)
     return out
@@ -1064,15 +1164,17 @@ def z_de_serie(valores, invertida=False):
     return z, media, desvio
 
 
-def fila_alta_vacia(nombre, asoc):
+def fila_alta_vacia(nombre, asoc, region=""):
     fila = {
         COL_NUM: "",
         COL_NOMBRE: nombre,
         COL_FECHA_1: "",
         COL_ASOC: asoc,
         COL_FECHA_2: "",
+        COL_REGION: region,
+        COL_SELEC: "",
     }
-    for c in COLS_EVAL:
+    for c in COLS_EVAL_TODAS:
         fila[f"{c}{SUF_1}"] = np.nan
         fila[f"{c}{SUF_2}"] = np.nan
         fila[c] = np.nan
@@ -1117,7 +1219,7 @@ def primera_fila_libre(hoja):
     return len(valores) + 1
 
 
-def guardar_entrenador(hoja, nombre, asoc, fecha, cual_eval, celdas):
+def guardar_entrenador_viejo(hoja, nombre, asoc, fecha, cual_eval, celdas):
     fila = buscar_fila_en_hoja(hoja, nombre)
     nueva = fila is None
     if nueva:
@@ -1150,27 +1252,61 @@ def guardar_entrenador(hoja, nombre, asoc, fecha, cual_eval, celdas):
     return nueva
 
 
+def guardar_entrenador_nuevo(hoja, nombre, region, asoc, fecha, cual_eval, celdas):
+    """Layout entrenadores: B–N (1ª) y O–W (2ª), 8 pruebas por bloque."""
+    fila = buscar_fila_en_hoja(hoja, nombre)
+    nueva = fila is None
+    if nueva:
+        fila = primera_fila_libre(hoja)
+    selec_celda = ""
+    if cual_eval == "1ª evaluación":
+        if nueva:
+            hoja.update(
+                f"B{fila}:N{fila}",
+                [[nombre, fecha, region, asoc, selec_celda] + celdas],
+                value_input_option="USER_ENTERED",
+            )
+        else:
+            hoja.update(
+                f"C{fila}:N{fila}",
+                [[fecha, region, asoc, selec_celda] + celdas],
+                value_input_option="USER_ENTERED",
+            )
+    else:
+        if nueva:
+            hoja.update(
+                f"B{fila}:F{fila}",
+                [[nombre, "", region, asoc, selec_celda]],
+                value_input_option="USER_ENTERED",
+            )
+        hoja.update(
+            f"O{fila}:W{fila}",
+            [[fecha] + celdas],
+            value_input_option="USER_ENTERED",
+        )
+    return nueva
+
+
+def guardar_entrenador(hoja, nombre, asoc, fecha, cual_eval, celdas, layout, region=""):
+    if layout == "nuevo":
+        return guardar_entrenador_nuevo(
+            hoja, nombre, region, asoc, fecha, cual_eval, celdas
+        )
+    return guardar_entrenador_viejo(hoja, nombre, asoc, fecha, cual_eval, celdas)
+
+
 @st.cache_data(ttl=30)
-def cargar_datos(_hoja, categoria, id_libro):
-    """Lee la hoja con el layout A-Q y devuelve un DataFrame normalizado.
+def cargar_datos(_hoja, categoria, id_libro, layout):
+    if layout == "nuevo":
+        return _cargar_datos_nuevo(_hoja)
+    return _cargar_datos_viejo(_hoja)
 
-    Layout esperado (igual en todas las hojas de categorías):
-      A = N°            B = Nombre y Apellido   C = Fecha 1ª evaluación
-      D = Asociación    E-J = SJ, CMJ, ABK, Sprint 30m, Test T, 30-15 IFT (1ª)
-      K = Fecha 2ª evaluación
-      L-Q = SJ, CMJ, ABK, Sprint 30m, Test T, 30-15 IFT (2ª)
 
-    Por cada evaluación se guardan tres columnas:
-      '<eval> (1ª)', '<eval> (2ª)' y '<eval>' (la MEJOR de las dos).
-    En tiempos (Sprint 30m, Test T) "mejor" = valor más bajo; en el resto, el más alto.
-
-    '_hoja' no entra en la clave del cache (Streamlit no hashea el objeto gspread).
-    'categoria' e 'id_libro' sí: así entrenador e invitado no se pisan aunque
-    las dos planillas tengan las mismas pestañas.
-    """
+def _cargar_datos_viejo(_hoja):
+    """Layout A–Q (invitados / planilla anterior)."""
     valores = _hoja.get_all_values()
     filas = [
-        (fila + [""] * ANCHO_HOJA)[:ANCHO_HOJA]  # rellena filas cortas para que no falten columnas
+        (fila + [""] * ANCHO_HOJA_VIEJO)[:ANCHO_HOJA_VIEJO]
         for fila in valores[1:]
         if len(fila) > 1 and str(fila[1]).strip() != ""
     ]
@@ -1178,7 +1314,10 @@ def cargar_datos(_hoja, categoria, id_libro):
     df = pd.DataFrame(
         filas,
         columns=[
-            COL_NUM, COL_NOMBRE, COL_FECHA_1, COL_ASOC,
+            COL_NUM,
+            COL_NOMBRE,
+            COL_FECHA_1,
+            COL_ASOC,
             *[f"{c}{SUF_1}" for c in COLS_EVAL],
             COL_FECHA_2,
             *[f"{c}{SUF_2}" for c in COLS_EVAL],
@@ -1191,6 +1330,42 @@ def cargar_datos(_hoja, categoria, id_libro):
         df[f"{c}{SUF_2}"] = df[f"{c}{SUF_2}"].apply(parse_numero)
 
     df = consolidar_mejores(df)
+    df[COL_ANIO] = df.apply(
+        lambda r: anio_ultima_evaluacion(r[COL_FECHA_1], r[COL_FECHA_2]), axis=1
+    )
+    return df, list(COLS_EVAL)
+
+
+def _cargar_datos_nuevo(_hoja):
+    """Layout entrenadores (23 columnas): región, Selec. ARG, vel. promedio/máx."""
+    valores = _hoja.get_all_values()
+    filas = [
+        (fila + [""] * ANCHO_HOJA_NUEVO)[:ANCHO_HOJA_NUEVO]
+        for fila in valores[1:]
+        if len(fila) > 1 and str(fila[1]).strip() != ""
+    ]
+    registros = []
+    for fila in filas:
+        rec = {
+            COL_NUM: fila[0],
+            COL_NOMBRE: str(fila[1]).strip(),
+            COL_FECHA_1: fila[2],
+            COL_REGION: str(fila[3]).strip(),
+            COL_ASOC: str(fila[4]).strip(),
+            COL_SELEC: str(fila[5]).strip(),
+            COL_FECHA_2: fila[14],
+        }
+        for c, raw in zip(COLS_EVAL_TODAS, fila[6:14]):
+            rec[f"{c}{SUF_1}"] = parse_numero(raw)
+        for c, raw in zip(COLS_EVAL_TODAS, fila[15:23]):
+            rec[f"{c}{SUF_2}"] = parse_numero(raw)
+        registros.append(rec)
+
+    df = pd.DataFrame(registros)
+    df = consolidar_mejores(df)
+    df[COL_ANIO] = df.apply(
+        lambda r: anio_ultima_evaluacion(r[COL_FECHA_1], r[COL_FECHA_2]), axis=1
+    )
     return df, list(COLS_EVAL)
 
 
@@ -1244,20 +1419,60 @@ except Exception as exc:
 
 todas_las_hojas = libro.worksheets()
 categorias = [ws.title for ws in todas_las_hojas if ws.title != HOJA_VIDEOS]
+layout_datos = layout_planilla(es_entrenador)
+cols_eval_gauss = COLS_EVAL_TODAS if layout_datos == "nuevo" else COLS_EVAL
+cols_eval_comparativas = COLS_EVAL_TODAS if layout_datos == "nuevo" else COLS_EVAL
+cols_eval_boxplot = COLS_EVAL_TODAS if layout_datos == "nuevo" else COLS_EVAL
 
 st.caption("Evaluaciones · Concentración Nacional")
-categoria = st.selectbox("Categoría:", categorias)
+row_f1_1, row_f1_2, row_f1_3 = st.columns(3)
+with row_f1_1:
+    categoria = st.selectbox("Categoría:", categorias, key="filtro_categoria")
+row_f2_1, row_f2_2 = st.columns(2)
+
 hoja = next(ws for ws in todas_las_hojas if ws.title == categoria)
-
-df, _ = cargar_datos(hoja, categoria, id_libro)
-df = df.copy()
+df_base, _ = cargar_datos(hoja, categoria, id_libro, layout_datos)
 if not es_entrenador:
-    df = aplicar_altas_invitado(df, categoria)
+    df_base = aplicar_altas_invitado(df_base, categoria)
 
-con_2da = df[[f"{c}{SUF_2}" for c in COLS_EVAL]].notna().any(axis=1).sum()
+anos_disponibles = sorted(
+    {int(y) for y in df_base[COL_ANIO].dropna().unique()}
+) if COL_ANIO in df_base.columns else []
+opciones_ano = [FILTRO_TODOS] + [str(y) for y in anos_disponibles]
+with row_f1_2:
+    filtro_ano = st.selectbox("Año:", opciones_ano, key="filtro_ano")
+with row_f1_3:
+    filtro_conv = st.selectbox(
+        "Convocatoria:",
+        [FILTRO_TODOS, FILTRO_SELEC_ARG],
+        key="filtro_conv",
+    )
+with row_f2_1:
+    filtro_region = st.selectbox(
+        "Región:",
+        opciones_filtro_texto(
+            df_base[COL_REGION] if COL_REGION in df_base.columns else pd.Series(dtype=str),
+            FILTRO_TODAS,
+        ),
+        key="filtro_region",
+    )
+with row_f2_2:
+    filtro_asoc = st.selectbox(
+        "Asociación:",
+        opciones_filtro_texto(df_base[COL_ASOC], FILTRO_TODAS),
+        key="filtro_asoc",
+    )
+
+df = filtrar_dataset(df_base, filtro_ano, filtro_conv, filtro_region, filtro_asoc)
+
+con_2da = (
+    df[[f"{c}{SUF_2}" for c in columnas_eval_en_df(df)]].notna().any(axis=1).sum()
+    if not df.empty
+    else 0
+)
 extras_invitado = (not es_entrenador) and bool(st.session_state.guest_altas.get(categoria))
 st.caption(
-    f"{categoria} · {len(df)} jugadoras cargadas · {con_2da} con 2ª evaluación · "
+    f"{categoria} · {len(df)} jugadoras en el filtro · {con_2da} con 2ª evaluación · "
     "En cada evaluación se usa la mejor de las dos fechas · Fuente: Google Sheet"
     + (" · más pruebas de esta sesión" if extras_invitado else "")
 )
@@ -1322,7 +1537,9 @@ with tab1:
     with col_izq:
         st.subheader("Configuración")
 
-        evaluacion = st.selectbox("Evaluación a analizar:", COLS_EVAL, key="eval_gauss")
+        evaluacion = st.selectbox(
+            "Evaluación a analizar:", cols_eval_gauss, key="eval_gauss"
+        )
 
         df["valor"] = df[evaluacion]  # mejor marca entre 1ª y 2ª evaluación
         datos = df.dropna(subset=["valor"]).copy()
@@ -1359,6 +1576,10 @@ with tab1:
             st.caption("En modo invitado esto no se escribe en la planilla.")
         with st.form("form_nueva_jugadora", clear_on_submit=True):
             nombre_nuevo = st.text_input("Nombre y Apellido *")
+            if layout_datos == "nuevo":
+                region_nueva = st.text_input("Región")
+            else:
+                region_nueva = ""
             asoc_nueva = st.text_input("Asociación")
             fecha_nueva = st.text_input("Fecha de la evaluación")
             cual_eval = st.radio(
@@ -1368,7 +1589,7 @@ with tab1:
             )
             st.caption("Resultados (podés dejar vacío lo que no tengas todavía):")
             vals_nuevos = {}
-            for c in COLS_EVAL:
+            for c in cols_eval_gauss:
                 vals_nuevos[c] = st.text_input(c, key=f"nuevo_{c}")
             enviar = st.form_submit_button(etiqueta_guardar, type="primary")
 
@@ -1378,7 +1599,7 @@ with tab1:
                 else:
                     invalidos = [
                         c
-                        for c in COLS_EVAL
+                        for c in cols_eval_gauss
                         if vals_nuevos[c].strip() != ""
                         and pd.isna(parse_numero(vals_nuevos[c]))
                     ]
@@ -1387,11 +1608,12 @@ with tab1:
                             "Estos resultados no son números: " + ", ".join(invalidos)
                         )
                     else:
-                        numeros = [parse_numero(vals_nuevos[c]) for c in COLS_EVAL]
+                        numeros = [parse_numero(vals_nuevos[c]) for c in cols_eval_gauss]
                         celdas = [formato_celda(n) for n in numeros]
                         nombre_ok = nombre_nuevo.strip()
                         asoc_ok = asoc_nueva.strip()
                         fecha_ok = fecha_nueva.strip()
+                        region_ok = region_nueva.strip()
                         if es_entrenador:
                             try:
                                 nueva = guardar_entrenador(
@@ -1401,6 +1623,8 @@ with tab1:
                                     fecha_ok,
                                     cual_eval,
                                     celdas,
+                                    layout_datos,
+                                    region=region_ok,
                                 )
                             except gspread.exceptions.APIError as exc:
                                 bot = email_cuenta_servicio() or "la cuenta de servicio"
@@ -1425,15 +1649,17 @@ with tab1:
                                     )
                                 st.rerun()
                         else:
-                            alta = fila_alta_vacia(nombre_ok, asoc_ok)
+                            alta = fila_alta_vacia(nombre_ok, asoc_ok, region_ok)
                             if cual_eval == "1ª evaluación":
                                 alta[COL_FECHA_1] = fecha_ok
-                                for c, n in zip(COLS_EVAL, numeros):
-                                    alta[f"{c}{SUF_1}"] = n
+                                for c, n in zip(cols_eval_gauss, numeros):
+                                    if c in COLS_EVAL_TODAS:
+                                        alta[f"{c}{SUF_1}"] = n
                             else:
                                 alta[COL_FECHA_2] = fecha_ok
-                                for c, n in zip(COLS_EVAL, numeros):
-                                    alta[f"{c}{SUF_2}"] = n
+                                for c, n in zip(cols_eval_gauss, numeros):
+                                    if c in COLS_EVAL_TODAS:
+                                        alta[f"{c}{SUF_2}"] = n
                             por_cat = st.session_state.guest_altas.setdefault(categoria, [])
                             objetivo = normalizar(nombre_ok)
                             previa = next(
@@ -1870,158 +2096,295 @@ with tab2:
     )
 
 # ========================================================================
-# PESTAÑA 3 — BOXPLOT COMPARATIVO ENTRE CATEGORÍAS
+# PESTAÑA 3 — BOXPLOT COMPARATIVO
 # ========================================================================
 with tab3:
-    st.subheader("📦 Boxplot comparativo entre categorías")
+    st.subheader("📦 Boxplot comparativo")
     st.caption(
-        "Elegí una evaluación y las categorías que querés comparar en el mismo gráfico. "
-        "Cada caja muestra la mediana (línea sólida) y los percentiles 25%-75% (bordes de "
-        "la caja); la línea punteada marca la media, y los puntos fuera de los bigotes son "
-        "valores atípicos."
+        "Compará grupos dentro de una categoría. Cada caja muestra mediana, "
+        "percentiles 25%-75% y valores atípicos."
     )
 
-    col_cat, col_eval = st.columns([2, 1])
-    with col_cat:
-        categorias_boxplot = st.multiselect(
-            "Categorías a comparar:", categorias, default=categorias, key="cats_boxplot"
+    PALETA_BOXPLOT = [
+        "#2563EB", "#0EA5A4", "#F59E0B", "#DC2626",
+        "#7C3AED", "#059669", "#DB2777", "#475569",
+    ]
+
+    if layout_datos == "nuevo":
+        bx1, bx2, bx3, bx4 = st.columns(4)
+        with bx1:
+            categoria_box = st.selectbox(
+                "Categoría:",
+                categorias,
+                index=categorias.index(categoria) if categoria in categorias else 0,
+                key="box_categoria",
+            )
+        with bx2:
+            evaluacion_boxplot = st.selectbox(
+                "Evaluación:", cols_eval_boxplot, key="eval_boxplot"
+            )
+        with bx3:
+            modo_boxplot = st.radio(
+                "Ver:", ["Resultado crudo", "Z-score"], horizontal=True, key="modo_boxplot"
+            )
+        with bx4:
+            st.caption("Usá los filtros globales (año, convocatoria, asociación) arriba.")
+
+        regiones_en_cat = cargar_y_filtrar_categoria(
+            categoria_box,
+            todas_las_hojas,
+            id_libro,
+            layout_datos,
+            filtro_ano,
+            filtro_conv,
+            FILTRO_TODAS,
+            filtro_asoc,
+            es_entrenador,
         )
-    with col_eval:
-        evaluacion_boxplot = st.selectbox("Evaluación:", COLS_EVAL, key="eval_boxplot")
+        opts_region = opciones_filtro_texto(
+            regiones_en_cat[COL_REGION] if COL_REGION in regiones_en_cat.columns else pd.Series(dtype=str),
+            FILTRO_TODAS,
+        )[1:]
+        opts_region = opts_region + [OPCION_SELEC_BOX]
+        regiones_box = st.multiselect(
+            "Región / convocatoria a comparar:",
+            opts_region,
+            key="box_regiones",
+        )
 
-    modo_boxplot = st.radio(
-        "Ver:", ["Resultado crudo", "Z-score"], horizontal=True, key="modo_boxplot"
-    )
+        if not regiones_box:
+            st.info("Elegí al menos una región o Selección Argentina.")
+        elif evaluacion_boxplot not in regiones_en_cat.columns:
+            st.warning("Esta evaluación no está disponible en los datos filtrados.")
+        else:
+            series_por_grupo = {}
+            for grupo in regiones_box:
+                if grupo == OPCION_SELEC_BOX:
+                    sub = regiones_en_cat[
+                        regiones_en_cat[COL_SELEC].map(es_convocada_seleccion)
+                    ]
+                else:
+                    sub = regiones_en_cat[
+                        regiones_en_cat[COL_REGION].astype(str).str.strip() == grupo
+                    ]
+                datos = pd.DataFrame(
+                    {"nombre": sub[COL_NOMBRE], "valor": sub[evaluacion_boxplot]}
+                ).dropna(subset=["valor"])
+                if not datos.empty:
+                    series_por_grupo[grupo] = datos
 
-    if not categorias_boxplot:
-        st.info("Elegí al menos una categoría para ver el gráfico.")
+            fig_box = go.Figure()
+            for i, (grupo, datos_cat) in enumerate(series_por_grupo.items()):
+                nombres_cat = datos_cat["nombre"].values
+                valores_crudos = datos_cat["valor"].values
+                if modo_boxplot == "Z-score":
+                    z_graf, _, _ = z_de_serie(
+                        valores_crudos,
+                        invertida=evaluacion_boxplot in EVALUACIONES_INVERTIDAS,
+                    )
+                    valores_graf = z_graf
+                else:
+                    valores_graf = valores_crudos
+
+                color_cat = PALETA_BOXPLOT[i % len(PALETA_BOXPLOT)]
+                r = int(color_cat[1:3], 16)
+                g = int(color_cat[3:5], 16)
+                b = int(color_cat[5:7], 16)
+                fig_box.add_trace(
+                    go.Box(
+                        y=valores_graf,
+                        name=grupo,
+                        boxmean=True,
+                        fillcolor=f"rgba({r},{g},{b},0.40)",
+                        line=dict(color=f"rgba({r},{g},{b},0.90)", width=2),
+                        marker=dict(color=color_cat, size=5, opacity=0.88),
+                        customdata=np.stack([nombres_cat, valores_crudos], axis=-1),
+                        hovertemplate=(
+                            "<b>%{customdata[0]}</b><br>"
+                            f"{evaluacion_boxplot}: " + "%{customdata[1]:.2f}<extra></extra>"
+                        ),
+                    )
+                )
+                mediana_cat = np.median(valores_graf)
+                media_valor = np.mean(valores_graf)
+                tope_caja = np.max(valores_graf)
+                fig_box.add_annotation(
+                    x=grupo,
+                    y=tope_caja,
+                    yshift=18,
+                    text=f"x̄ {media_valor:.2f} · Md {mediana_cat:.2f}",
+                    showarrow=False,
+                    font=dict(size=14, color=color_cat),
+                    align="center",
+                )
+
+            yaxis_cfg = dict(fixedrange=True)
+            if (
+                modo_boxplot == "Resultado crudo"
+                and evaluacion_boxplot in EVALUACIONES_INVERTIDAS
+            ):
+                yaxis_cfg["autorange"] = "reversed"
+
+            fig_box.update_layout(
+                title=f"{categoria_box} · {evaluacion_boxplot}",
+                yaxis_title=(
+                    "Z-score" if modo_boxplot == "Z-score" else evaluacion_boxplot
+                ),
+                height=740,
+                showlegend=False,
+                margin=dict(t=88),
+                dragmode=False,
+                xaxis=dict(fixedrange=True),
+                yaxis=yaxis_cfg,
+            )
+            evento_box = st.plotly_chart(
+                fig_box,
+                use_container_width=True,
+                key="boxplot_chart",
+                on_select="rerun",
+                config={
+                    "displayModeBar": False,
+                    "scrollZoom": False,
+                    "doubleClick": False,
+                },
+            )
+            if evento_box and evento_box.get("selection") and evento_box["selection"].get("points"):
+                punto_box = evento_box["selection"]["points"][0]
+                cd_box = punto_box.get("customdata")
+                categoria_punto = punto_box.get("x")
+                if cd_box:
+                    st.info(
+                        f"**Jugadora seleccionada:** {cd_box[0]}  \n"
+                        f"**Grupo:** {categoria_punto}  \n"
+                        f"**{evaluacion_boxplot}:** {float(cd_box[1]):.2f}"
+                    )
     else:
-        # Misma paleta que el resto de la app. Las altas de invitado se aplican
-        # sobre el DataFrame completo (no adentro del cache de cargar_datos),
-        # igual que en Campana, Radar y Comparativas.
-        PALETA_BOXPLOT = [
-            "#2563EB", "#0EA5A4", "#F59E0B", "#DC2626",
-            "#7C3AED", "#059669", "#DB2777", "#475569",
-        ]
+        col_cat, col_eval = st.columns([2, 1])
+        with col_cat:
+            categorias_boxplot = st.multiselect(
+                "Categorías a comparar:", categorias, default=categorias, key="cats_boxplot"
+            )
+        with col_eval:
+            evaluacion_boxplot = st.selectbox(
+                "Evaluación:", cols_eval_boxplot, key="eval_boxplot_legacy"
+            )
+        modo_boxplot = st.radio(
+            "Ver:", ["Resultado crudo", "Z-score"], horizontal=True, key="modo_boxplot_legacy"
+        )
 
-        series_por_categoria = {}
-        for cat in categorias_boxplot:
-            hoja_cat = next((ws for ws in todas_las_hojas if ws.title == cat), None)
-            if hoja_cat is None:
-                continue
-            df_cat, _ = cargar_datos(hoja_cat, cat, id_libro)
-            if not es_entrenador:
-                df_cat = aplicar_altas_invitado(df_cat, cat)
-            if evaluacion_boxplot not in df_cat.columns:
-                continue
-            datos_cat = pd.DataFrame(
-                {"nombre": df_cat[COL_NOMBRE], "valor": df_cat[evaluacion_boxplot]}
-            ).dropna(subset=["valor"])
-            if not datos_cat.empty:
-                series_por_categoria[cat] = datos_cat
-
-        fig_box = go.Figure()
-        for i, (cat, datos_cat) in enumerate(series_por_categoria.items()):
-            nombres_cat = datos_cat["nombre"].values
-            valores_crudos = datos_cat["valor"].values
-
-            if modo_boxplot == "Z-score":
-                z_graf, _, _ = z_de_serie(
-                    datos_cat["valor"].values,
-                    invertida=evaluacion_boxplot in EVALUACIONES_INVERTIDAS,
+        if not categorias_boxplot:
+            st.info("Elegí al menos una categoría para ver el gráfico.")
+        else:
+            series_por_categoria = {}
+            for cat in categorias_boxplot:
+                df_cat = cargar_y_filtrar_categoria(
+                    cat,
+                    todas_las_hojas,
+                    id_libro,
+                    layout_datos,
+                    filtro_ano,
+                    filtro_conv,
+                    filtro_region,
+                    filtro_asoc,
+                    es_entrenador,
                 )
-                valores_graf = z_graf
-            else:
-                valores_graf = valores_crudos
+                if evaluacion_boxplot not in df_cat.columns:
+                    continue
+                datos_cat = pd.DataFrame(
+                    {"nombre": df_cat[COL_NOMBRE], "valor": df_cat[evaluacion_boxplot]}
+                ).dropna(subset=["valor"])
+                if not datos_cat.empty:
+                    series_por_categoria[cat] = datos_cat
 
-            color_cat = PALETA_BOXPLOT[i % len(PALETA_BOXPLOT)]
-            r = int(color_cat[1:3], 16)
-            g = int(color_cat[3:5], 16)
-            b = int(color_cat[5:7], 16)
-            fig_box.add_trace(
-                go.Box(
-                    y=valores_graf,
-                    name=cat,
-                    boxmean=True,
-                    fillcolor=f"rgba({r},{g},{b},0.40)",
-                    line=dict(color=f"rgba({r},{g},{b},0.90)", width=2),
-                    marker=dict(color=color_cat, size=5, opacity=0.88),
-                    customdata=np.stack([nombres_cat, valores_crudos], axis=-1),
-                    hovertemplate=(
-                        "<b>%{customdata[0]}</b><br>"
-                        f"{evaluacion_boxplot}: " + "%{customdata[1]:.2f}<extra></extra>"
-                    ),
+            fig_box = go.Figure()
+            for i, (cat, datos_cat) in enumerate(series_por_categoria.items()):
+                nombres_cat = datos_cat["nombre"].values
+                valores_crudos = datos_cat["valor"].values
+                if modo_boxplot == "Z-score":
+                    z_graf, _, _ = z_de_serie(
+                        datos_cat["valor"].values,
+                        invertida=evaluacion_boxplot in EVALUACIONES_INVERTIDAS,
+                    )
+                    valores_graf = z_graf
+                else:
+                    valores_graf = valores_crudos
+                color_cat = PALETA_BOXPLOT[i % len(PALETA_BOXPLOT)]
+                r = int(color_cat[1:3], 16)
+                g = int(color_cat[3:5], 16)
+                b = int(color_cat[5:7], 16)
+                fig_box.add_trace(
+                    go.Box(
+                        y=valores_graf,
+                        name=cat,
+                        boxmean=True,
+                        fillcolor=f"rgba({r},{g},{b},0.40)",
+                        line=dict(color=f"rgba({r},{g},{b},0.90)", width=2),
+                        marker=dict(color=color_cat, size=5, opacity=0.88),
+                        customdata=np.stack([nombres_cat, valores_crudos], axis=-1),
+                        hovertemplate=(
+                            "<b>%{customdata[0]}</b><br>"
+                            f"{evaluacion_boxplot}: " + "%{customdata[1]:.2f}<extra></extra>"
+                        ),
+                    )
                 )
+                mediana_cat = np.median(valores_graf)
+                media_valor = np.mean(valores_graf)
+                tope_caja = np.max(valores_graf)
+                fig_box.add_annotation(
+                    x=cat,
+                    y=tope_caja,
+                    yshift=18,
+                    text=f"x̄ {media_valor:.2f} · Md {mediana_cat:.2f}",
+                    showarrow=False,
+                    font=dict(size=14, color=color_cat),
+                    align="center",
+                )
+
+            yaxis_cfg = dict(fixedrange=True)
+            if (
+                modo_boxplot == "Resultado crudo"
+                and evaluacion_boxplot in EVALUACIONES_INVERTIDAS
+            ):
+                yaxis_cfg["autorange"] = "reversed"
+
+            fig_box.update_layout(
+                title=f"{evaluacion_boxplot} — comparación entre categorías",
+                yaxis_title=(
+                    "Z-score" if modo_boxplot == "Z-score" else evaluacion_boxplot
+                ),
+                height=740,
+                showlegend=False,
+                margin=dict(t=88),
+                dragmode=False,
+                xaxis=dict(fixedrange=True),
+                yaxis=yaxis_cfg,
+            )
+            st.plotly_chart(
+                fig_box,
+                use_container_width=True,
+                key="boxplot_chart_legacy",
+                config={
+                    "displayModeBar": False,
+                    "scrollZoom": False,
+                    "doubleClick": False,
+                },
             )
 
-            # Etiqueta con media y mediana justo arriba de cada caja, para
-            # que las estadísticas se lean directamente sin pasar el mouse.
-            mediana_cat = np.median(valores_graf)
-            media_valor = np.mean(valores_graf)
-            tope_caja = np.max(valores_graf)
-            fig_box.add_annotation(
-                x=cat,
-                y=tope_caja,
-                yshift=18,
-                text=f"x̄ {media_valor:.2f} · Md {mediana_cat:.2f}",
-                showarrow=False,
-                font=dict(size=14, color=color_cat),
-                align="center",
-            )
-
-        fig_box.update_layout(
-            title=f"{evaluacion_boxplot} — comparación entre categorías",
-            yaxis_title=("Z-score" if modo_boxplot == "Z-score" else evaluacion_boxplot),
-            height=740,
-            showlegend=False,
-            margin=dict(t=88),
-            dragmode=False,  # evita que arrastrar el mouse/dedo mueva o deforme el gráfico
-            xaxis=dict(fixedrange=True),  # sin zoom/paneo horizontal
-            yaxis=dict(fixedrange=True),  # sin zoom/paneo vertical
-        )
-        evento_box = st.plotly_chart(
-            fig_box,
-            use_container_width=True,
-            key="boxplot_chart",
-            on_select="rerun",
-            config={
-                "displayModeBar": False,  # sin botones de zoom/pan de Plotly
-                "scrollZoom": False,       # sin zoom con rueda del mouse o gesto táctil
-                "doubleClick": False,      # doble clic/doble tap no resetea ni deforma la vista
-            },
-        )
-
-        if evento_box and evento_box.get("selection") and evento_box["selection"].get("points"):
-            punto_box = evento_box["selection"]["points"][0]
-            cd_box = punto_box.get("customdata")
-            categoria_punto = punto_box.get("x")
-            if cd_box:
-                st.info(
-                    f"**Jugadora seleccionada:** {cd_box[0]}  \n"
-                    f"**Categoría:** {categoria_punto}  \n"
-                    f"**{evaluacion_boxplot}:** {float(cd_box[1]):.2f}"
-                )
-            else:
-                st.caption(
-                    "Ese punto pertenece al rango normal de la caja (no es un valor "
-                    "atípico) — hacé clic sobre uno de los puntos sueltos para ver su nombre."
-                )
-
-        st.markdown(
-            textwrap.dedent(
-                """
-                <div class="ns-legend">
-                  <div class="ns-legend-title">📖 Referencias</div>
-                  <div class="ns-legend-item"><b>Caja (Q1–Q3):</b> 50% central de los datos</div>
-                  <div class="ns-legend-item">▬ <b>Línea sólida:</b> mediana</div>
-                  <div class="ns-legend-item">┄ <b>Línea punteada:</b> media (x̄)</div>
-                  <div class="ns-legend-item"><b>Bigotes:</b> rango habitual (±1.5×RIC)</div>
-                  <div class="ns-legend-item">● <b>Puntos sueltos:</b> valores atípicos</div>
-                </div>
-                """
-            ),
-            unsafe_allow_html=True,
-        )
+    st.markdown(
+        textwrap.dedent(
+            """
+            <div class="ns-legend">
+              <div class="ns-legend-title">📖 Referencias</div>
+              <div class="ns-legend-item"><b>Caja (Q1–Q3):</b> 50% central de los datos</div>
+              <div class="ns-legend-item">▬ <b>Línea sólida:</b> mediana</div>
+              <div class="ns-legend-item">┄ <b>Línea punteada:</b> media (x̄)</div>
+              <div class="ns-legend-item"><b>Bigotes:</b> rango habitual (±1.5×RIC)</div>
+              <div class="ns-legend-item">● <b>Puntos sueltos:</b> valores atípicos</div>
+            </div>
+            """
+        ),
+        unsafe_allow_html=True,
+    )
 
 # ========================================================================
 # PESTAÑA 5 — COMPARATIVAS (gráfico de columnas 1ª vs 2ª evaluación)
@@ -2039,13 +2402,27 @@ with tab5:
         categoria_comp = st.selectbox("Categoría:", categorias, key="cat_comparativas")
     with col_evals_comp:
         evals_comp = st.multiselect(
-            "Evaluaciones a comparar:", COLS_EVAL, default=COLS_EVAL, key="evals_comparativas"
+            "Evaluaciones a comparar:",
+            cols_eval_comparativas,
+            default=cols_eval_comparativas,
+            key="evals_comparativas",
         )
 
-    hoja_comp = next((ws for ws in todas_las_hojas if ws.title == categoria_comp), None)
-    df_comp, _ = cargar_datos(hoja_comp, categoria_comp, id_libro) if hoja_comp is not None else (pd.DataFrame(), None)
-    if not es_entrenador and not df_comp.empty:
-        df_comp = aplicar_altas_invitado(df_comp, categoria_comp)
+    df_comp = (
+        cargar_y_filtrar_categoria(
+            categoria_comp,
+            todas_las_hojas,
+            id_libro,
+            layout_datos,
+            filtro_ano,
+            filtro_conv,
+            filtro_region,
+            filtro_asoc,
+            es_entrenador,
+        )
+        if categoria_comp in categorias
+        else pd.DataFrame()
+    )
 
     if df_comp.empty or not evals_comp:
         st.info("Elegí una categoría con datos y al menos una evaluación.")
